@@ -71,10 +71,10 @@ class IrMailServer(models.Model):
         smtp_from, smtp_to_list, message = super()._prepare_email_message(
             message, smtp_session
         )
-        name_from = self._context.get("name_from")
-        email_from = self._context.get("email_from")
-        email_domain = self._context.get("email_domain")
-        mail_server = self.browse(self._context.get("mail_server_id"))
+        name_from = self.env.context.get("name_from")
+        email_from = self.env.context.get("email_from")
+        email_domain = self.env.context.get("email_domain")
+        mail_server = self.browse(self.env.context.get("mail_server_id"))
         domain_whitelist = mail_server.domain_whitelist or tools.config.get(
             "smtp_domain_whitelist"
         )

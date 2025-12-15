@@ -16,7 +16,7 @@ class TestMailActivityBoardMethods(TransactionCase):
                 "name": "Employee",
                 "login": "csu",
                 "email": "crmuser@yourcompany.com",
-                "groups_id": [
+                "group_ids": [
                     (
                         6,
                         0,
@@ -36,7 +36,7 @@ class TestMailActivityBoardMethods(TransactionCase):
                 "name": "Employee2",
                 "login": "alien",
                 "email": "alien@yourcompany.com",
-                "groups_id": [(6, 0, [mail_activity_group.id])],
+                "group_ids": [(6, 0, [mail_activity_group.id])],
             }
         )
 

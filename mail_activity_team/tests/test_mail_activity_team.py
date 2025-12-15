@@ -23,7 +23,7 @@ class TestMailActivityTeam(TransactionCase):
                 "name": "Employee",
                 "login": "csu",
                 "email": "crmuser@yourcompany.com",
-                "groups_id": [
+                "group_ids": [
                     (
                         6,
                         0,
@@ -41,7 +41,7 @@ class TestMailActivityTeam(TransactionCase):
                 "name": "Employee 2",
                 "login": "csu2",
                 "email": "crmuser2@yourcompany.com",
-                "groups_id": [(6, 0, [cls.env.ref("base.group_user").id])],
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
             }
         )
         cls.employee3 = cls.env["res.users"].create(
@@ -50,7 +50,7 @@ class TestMailActivityTeam(TransactionCase):
                 "name": "Employee 3",
                 "login": "csu3",
                 "email": "crmuser3@yourcompany.com",
-                "groups_id": [(6, 0, [cls.env.ref("base.group_user").id])],
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
             }
         )
         # Create Activity Types
@@ -393,7 +393,7 @@ class TestMailActivityTeam(TransactionCase):
         # Create a non-team activity for our second employee, for a second partner
         self.team1.member_ids |= self.employee2
         partner2 = self.partner_client.copy()
-        self.employee2.groups_id += self.env.ref("base.group_partner_manager")
+        self.employee2.group_ids += self.env.ref("base.group_partner_manager")
 
         # Craft the activity without a team
         act3 = (
