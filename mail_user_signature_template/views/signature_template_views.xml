@@ -301,7 +301,7 @@
                     domain="[('include_company_logo', '=', True)]"
                 />
                 <separator />
-                <group expand="0" string="Group By">
+                <group>
                     <filter
                         string="Company"
                         name="company"
