@@ -137,7 +137,7 @@
                     domain="[('state', 'in', ('error', 'rejected', 'spam', 'bounced', 'soft-bounced'))]"
                 />
                 <separator />
-                <group expand="0" string="Group By">
+                <group>
                     <filter
                         string="State"
                         name="group_by_state"

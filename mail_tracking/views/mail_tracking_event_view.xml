@@ -136,7 +136,7 @@
                     context="{'event_error_filter': True}"
                 />
                 <separator />
-                <group expand="0" string="Group By">
+                <group>
                     <filter
                         string="Type"
                         name="group_by_type"
