@@ -218,7 +218,7 @@ class SignatureTemplate(models.Model):
             "name": user.name or "",
             "email": user.email or "",
             "phone": user.phone or "",
-            "mobile": user.mobile or "",
+            "mobile_phone": getattr(user, 'mobile_phone', '') or "",
             "function": user.function or "",
             "company_name": user.company_id.name or "",
             "website": user.company_id.website or "",
@@ -243,6 +243,8 @@ class SignatureTemplate(models.Model):
             )
             or "#0066cc",  # Backward compatibility
         }
+        # Backward compatibility alias for Odoo 18 templates
+        values["mobile"] = values["mobile_phone"]
 
         # Build website URL with UTM tracking or just clean it up
         if user.company_id.website:
