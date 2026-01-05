@@ -273,6 +273,7 @@ class SignatureTemplate(models.Model):
 
         # Add user avatar URL using res.users avatar fields (which have fallback)
         base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
+        values["base_url"] = base_url or ""
         # Use avatar fields which provide fallback when no photo is uploaded
         # Provide URLs for custom styling
         values["user_avatar_url"] = (
