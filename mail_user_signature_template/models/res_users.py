@@ -104,6 +104,12 @@ class ResUsers(models.Model):
     def _compute_signature(self):
         """Override signature computation to use templates."""
         for user in self:
+            # Skip signature rendering for unsaved records (NewIds)
+            # Template rendering requires a real database ID
+            if not user.id or isinstance(user.id, models.NewId):
+                user.signature = ""
+                continue
+
             if (
                 user.use_signature_template
                 and user.signature_template_id
