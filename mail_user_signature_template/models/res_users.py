@@ -3,6 +3,7 @@
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.orm.identifiers import NewId
 from odoo.tools import is_html_empty
 
 
@@ -106,7 +107,7 @@ class ResUsers(models.Model):
         for user in self:
             # Skip signature rendering for unsaved records (NewIds)
             # Template rendering requires a real database ID
-            if not user.id or isinstance(user.id, models.NewId):
+            if not user.id or isinstance(user.id, NewId):
                 user.signature = ""
                 continue
 
