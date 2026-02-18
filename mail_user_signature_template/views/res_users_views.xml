@@ -8,32 +8,31 @@
         <field name="arch" type="xml">
             <!-- Replace the signature field with our enhanced version -->
             <xpath expr="//field[@name='signature']" position="replace">
-                <group string="Email Signature" name="signature_group">
-                    <field
-                        name="use_signature_template"
-                        invisible="not company_id.use_signature_templates"
-                    />
-                    <field
-                        name="signature_template_id"
-                        invisible="not use_signature_template or not company_id.use_signature_templates"
-                        context="{'default_company_id': company_id}"
-                        options="{'no_create': True}"
-                    />
-                    <button
-                        name="action_preview_signature"
-                        type="object"
-                        string="Preview Signature"
-                        class="btn-link"
-                        invisible="not use_signature_template or not signature_template_id"
-                    />
-                    <field
-                        name="signature"
-                        widget="html"
-                        invisible="use_signature_template and company_id.use_signature_templates"
-                        placeholder="Type your custom signature here..."
-                        readonly="use_signature_template"
-                    />
-                </group>
+                <separator string="Email Signature"/>
+                <field
+                    name="use_signature_template"
+                    invisible="not company_id.use_signature_templates"
+                />
+                <field
+                    name="signature_template_id"
+                    invisible="not use_signature_template or not company_id.use_signature_templates"
+                    context="{'default_company_id': company_id}"
+                    options="{'no_create': True}"
+                />
+                <button
+                    name="action_preview_signature"
+                    type="object"
+                    string="Preview Signature"
+                    class="btn-link"
+                    invisible="not use_signature_template or not signature_template_id"
+                />
+                <field
+                    name="signature"
+                    widget="html"
+                    invisible="use_signature_template and company_id.use_signature_templates"
+                    placeholder="Type your custom signature here..."
+                    readonly="use_signature_template"
+                />
             </xpath>
         </field>
     </record>
@@ -52,34 +51,31 @@
             <xpath expr="//field[@name='signature']" position="replace">
                 <separator string="Email Signature" />
                 <field name="company_id" invisible="1" />
-                <group>
-                    <field
-                        name="use_signature_template"
-                        invisible="not company_id.use_signature_templates or company_id.force_signature_template"
-                    />
-                    <div
-                        class="text-muted small"
-                        invisible="not company_id.force_signature_template"
-                    >
-                        <i
-                        class="fa fa-info-circle"
-                    /> Your company requires using a signature template.
-                    </div>
-                    <field
-                        name="signature_template_id"
-                        invisible="not use_signature_template or not company_id.use_signature_templates"
-                        readonly="company_id.force_signature_template"
-                        context="{'default_company_id': company_id}"
-                        options="{'no_create': True}"
-                    />
-                </group>
-                <group
-                    string="Current Signature Preview"
-                    invisible="not use_signature_template or not signature_template_id"
-                    colspan="2"
+                <field
+                    name="use_signature_template"
+                    invisible="not company_id.use_signature_templates or company_id.force_signature_template"
+                />
+                <div
+                    class="text-muted small"
+                    invisible="not company_id.force_signature_template"
                 >
-                    <field name="signature" readonly="1" widget="html" nolabel="1" />
-                </group>
+                    <i class="fa fa-info-circle" title="Information" role="img" aria-label="Information"/>
+                    Your company requires using a signature template.
+                </div>
+                <field
+                    name="signature_template_id"
+                    invisible="not use_signature_template or not company_id.use_signature_templates"
+                    readonly="company_id.force_signature_template"
+                    context="{'default_company_id': company_id}"
+                    options="{'no_create': True}"
+                />
+                <button
+                    name="action_preview_signature"
+                    type="object"
+                    string="Preview Signature"
+                    class="btn-link"
+                    invisible="not use_signature_template or not signature_template_id"
+                />
                 <field
                     name="signature"
                     widget="html"
