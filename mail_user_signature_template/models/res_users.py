@@ -2,7 +2,6 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
 from odoo.orm.identifiers import NewId
 from odoo.tools import is_html_empty
 
@@ -157,26 +156,13 @@ class ResUsers(models.Model):
 
     def write(self, vals):
         """Handle signature updates."""
-        # Check if trying to change forced values
-        for user in self:
-            if user.company_id.force_signature_template:
-                if "use_signature_template" in vals and not vals.get(
-                    "use_signature_template"
-                ):
-                    raise ValidationError(
-                        _("Cannot disable signature template when company forces it.")
-                    )
-                if (
-                    "signature_template_id" in vals
-                    and vals.get("signature_template_id")
-                    != user.company_id.default_signature_template_id.id
-                ):
-                    raise ValidationError(
-                        _(
-                            "Cannot change signature template when company "
-                            "forces a specific template."
-                        )
-                    )
+        # When the company forces a template, silently strip user-level
+        # overrides.  Odoo's web_save sends computed field values back
+        # even when the user didn't change them, which would otherwise
+        # block every save on the res.users form.
+        if any(u.company_id.force_signature_template for u in self):
+            vals.pop("use_signature_template", None)
+            vals.pop("signature_template_id", None)
 
         # Map computed fields to internal fields
         if "use_signature_template" in vals:
