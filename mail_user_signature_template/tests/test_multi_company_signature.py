@@ -305,6 +305,62 @@ class TestMultiCompanySignature(TransactionCase):
         ctx = record._notify_by_email_prepare_rendering_context(msg, msg_vals={})
         self.assertIn(self.company_b.name, str(ctx.get("signature") or ""))
 
+    def test_send_as_override_real_send_path_flips_from_and_signature(self):
+        """Full send path: _action_send_mail threads the forced company into
+        message_post → BOTH notify hooks render for company_b.
+
+        Unlike the direct-hook test above, this drives the composer's own
+        _action_send_mail (no manually injected context) and inspects the
+        outgoing mail.mail to prove the forced "Send As" company reaches both
+        the From (get_base_mail_values hook) and the signature
+        (prepare_rendering_context hook).
+        """
+        partner = self.env["res.partner"].create(
+            {"name": "RcptSend", "email": "rcptsend@example.com",
+             "company_id": self.company_a.id}
+        )
+        # An EXTERNAL follower (no linked user) receives an *email* notification,
+        # which is what materialises a mail.mail. self.user.partner_id is also
+        # subscribed so the internal acting user is allowed to post, but as an
+        # internal user it is notified via inbox, not email.
+        external = self.env["res.partner"].create(
+            {"name": "External Rcpt", "email": "external.rcpt@example.com"}
+        )
+        partner.message_subscribe(
+            partner_ids=(self.user.partner_id + external).ids
+        )
+
+        Composer = self.env["mail.compose.message"].with_user(self.user)
+        composer = Composer.with_company(self.company_a).create({
+            "subject": "SendAs subject",
+            "body": "<p>hello</p>",
+            "composition_mode": "comment",
+            "model": "res.partner",
+            "res_ids": str([partner.id]),
+            "sending_company_id": self.company_b.id,
+        })
+        composer._action_send_mail()
+
+        # Locate the message this composer posted, then its outgoing mail.mail.
+        message = self.env["mail.message"].search(
+            [("model", "=", "res.partner"), ("res_id", "=", partner.id),
+             ("subject", "=", "SendAs subject")],
+            order="id desc", limit=1,
+        )
+        self.assertTrue(message, "composer should have posted a mail.message")
+        mail = self.env["mail.mail"].search(
+            [("mail_message_id", "=", message.id)], limit=1,
+        )
+        self.assertTrue(mail, "message_post should have queued a mail.mail")
+
+        # From flips to company_b's per-company identity via the real send path.
+        self.assertIn("annsophie@steen-parts-test.be", mail.email_from)
+        # Signature rendered into the body is company_b's (name marker present,
+        # company_a's per-company email absent).
+        body = mail.body_html or ""
+        self.assertIn(self.company_b.name, body)
+        self.assertNotIn("annsophie@company-a-test.be", body)
+
     # ------------------------------------------------------------------
     # Integration: mail.thread._notify_by_email_prepare_rendering_context
     # ------------------------------------------------------------------

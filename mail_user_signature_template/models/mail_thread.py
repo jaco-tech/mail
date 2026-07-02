@@ -8,12 +8,24 @@ from odoo import models
 class MailThread(models.AbstractModel):
     _inherit = "mail.thread"
 
-    def _signature_sending_company(self):
+    def _signature_sending_company(self, default=None):
         """Resolve the company that drives the From address and signature:
-        forced "Send As" context → record company → env.company."""
+        forced "Send As" context → ``default`` → record company → env.company.
+
+        ``default`` lets a caller preserve core's own company resolution (e.g.
+        the signature hook passes ``render_values["company"]``, which already
+        honors ``force_email_company`` and is sudo'd) as the fallback when no
+        "Send As" company is forced.
+        """
         forced = self.env.context.get("force_sending_company_id")
         if forced:
-            return self.env["res.company"].browse(forced)
+            # sudo() so the signature/From rendering can read the forced
+            # company's fields even when the acting user's active-company
+            # context does not include it. This mirrors core, which passes a
+            # sudo'd company in render_values["company"].
+            return self.env["res.company"].browse(forced).sudo()
+        if default:
+            return default
         if "company_id" in self._fields and self.company_id:
             return self.company_id
         return self.env.company
@@ -42,8 +54,13 @@ class MailThread(models.AbstractModel):
             return render_values
 
         # Determine the correct company for this notification (honoring a
-        # forced "Send As" company from the composer, if any).
-        company = self._signature_sending_company()
+        # forced "Send As" company from the composer, if any). Fall back to
+        # core's resolved company (render_values["company"]) so the prior
+        # behavior — honoring force_email_company, sudo'd — is preserved when
+        # nothing is forced.
+        company = self._signature_sending_company(
+            default=render_values.get("company")
+        )
 
         company_signature = author_user._get_company_signature(company)
         if company_signature:

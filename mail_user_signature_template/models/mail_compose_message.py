@@ -36,6 +36,8 @@ class MailComposeMessage(models.TransientModel):
             composer.allowed_sending_company_ids = companies
 
     def _compute_show_sending_company(self):
+        # Non-stored, user-context compute (no @api.depends): visibility keys on
+        # the acting user's company membership, not on any record field.
         show = len(self.env.user.company_ids) > 1
         for composer in self:
             composer.show_sending_company = show
@@ -76,11 +78,17 @@ class MailComposeMessage(models.TransientModel):
 
     def _action_send_mail(self, auto_commit=False):
         """Thread the chosen "Send As" company into message_post via context so
-        the notify hooks render the From + signature for that company."""
-        forced = self.sending_company_id
-        composer = self
-        if len(self) == 1 and forced:
-            composer = self.with_context(force_sending_company_id=forced.id)
-        return super(MailComposeMessage, composer)._action_send_mail(
+        the notify hooks render the From + signature for that company.
+
+        ``sending_company_id`` is only read when ``self`` is a singleton;
+        reading it on a multi-record composer set would raise "Expected
+        singleton".
+        """
+        composers = self
+        if len(self) == 1 and self.sending_company_id:
+            composers = self.with_context(
+                force_sending_company_id=self.sending_company_id.id
+            )
+        return super(MailComposeMessage, composers)._action_send_mail(
             auto_commit=auto_commit
         )
