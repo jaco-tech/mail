@@ -94,20 +94,21 @@ class UserSignatureCompany(models.Model):
         """Warn (block) when the From domain has no authorized outgoing server
         or alias domain — it would route via the fallback server and likely
         fail SPF/DKIM."""
+        servers = self.env["ir.mail_server"].sudo().search([])
+        filters = set()
+        for server in servers:
+            for part in (server.from_filter or "").split(","):
+                part = part.strip().lower()
+                if part:
+                    filters.add(part.rsplit("@", 1)[-1])
+        alias_domains = {
+            name.lower()
+            for name in self.env["mail.alias.domain"].sudo().search([]).mapped("name")
+        }
         for rec in self:
             if not rec.email or "@" not in rec.email:
                 continue
             domain = rec.email.rsplit("@", 1)[-1].lower()
-            servers = self.env["ir.mail_server"].sudo().search([])
-            filters = set()
-            for server in servers:
-                for part in (server.from_filter or "").split(","):
-                    part = part.strip().lower()
-                    if part:
-                        filters.add(part.rsplit("@", 1)[-1])
-            alias_domains = set(
-                self.env["mail.alias.domain"].sudo().search([]).mapped("name")
-            )
             if domain not in filters and domain not in alias_domains:
                 raise ValidationError(
                     self.env._(

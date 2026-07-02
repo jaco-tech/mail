@@ -564,11 +564,14 @@ class TestMultiCompanySignature(TransactionCase):
 
     def test_identity_email_domain_authorized_passes(self):
         """An identity email whose domain has a mail server / alias domain is ok."""
+        # Use a domain covered ONLY by the ir.mail_server.from_filter (no
+        # mail.alias.domain fixture exists for it), so authorization can come
+        # only from the from_filter branch under test.
         srv = self.env["ir.mail_server"].create(
             {
                 "name": "Test parts",
                 "smtp_host": "smtp.example.com",
-                "from_filter": "steen-parts-test.be",
+                "from_filter": "mailserver-only-test.be",
             }
         )
         self.assertTrue(srv)
@@ -576,7 +579,7 @@ class TestMultiCompanySignature(TransactionCase):
             {
                 "user_id": self.user.id,
                 "company_id": self.company_a.id,
-                "email": "ok@steen-parts-test.be",
+                "email": "ok@mailserver-only-test.be",
             }
         )
         self.assertTrue(rec.id)
