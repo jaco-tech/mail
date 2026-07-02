@@ -89,6 +89,35 @@ class UserSignatureCompany(models.Model):
                     )
                 )
 
+    @api.constrains("email")
+    def _check_email_domain_authorized(self):
+        """Warn (block) when the From domain has no authorized outgoing server
+        or alias domain — it would route via the fallback server and likely
+        fail SPF/DKIM."""
+        for rec in self:
+            if not rec.email or "@" not in rec.email:
+                continue
+            domain = rec.email.rsplit("@", 1)[-1].lower()
+            servers = self.env["ir.mail_server"].sudo().search([])
+            filters = set()
+            for server in servers:
+                for part in (server.from_filter or "").split(","):
+                    part = part.strip().lower()
+                    if part:
+                        filters.add(part.rsplit("@", 1)[-1])
+            alias_domains = set(
+                self.env["mail.alias.domain"].sudo().search([]).mapped("name")
+            )
+            if domain not in filters and domain not in alias_domains:
+                raise ValidationError(
+                    self.env._(
+                        "The domain '%(domain)s' has no authorized outgoing mail "
+                        "server or alias domain. Mail sent from this address may "
+                        "fail delivery (SPF/DKIM).",
+                        domain=domain,
+                    )
+                )
+
     @api.model
     def _get_or_create(self, user, company):
         """Find or create a per-company signature record for the given user+company."""

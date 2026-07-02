@@ -63,6 +63,10 @@ class TestMultiCompanySignature(TransactionCase):
             }
         )
 
+        # Authorize the company B mail domain so identity emails on it satisfy
+        # the domain-authorization constraint (Task 7).
+        cls.env["mail.alias.domain"].create({"name": "steen-parts-test.be"})
+
         # Set up per-company email for company B
         cls.sig_company_b = cls.env["user.signature.company"].create(
             {
@@ -546,6 +550,36 @@ class TestMultiCompanySignature(TransactionCase):
             [("id", "=", row.id)]
         )
         self.assertTrue(visible)
+
+    def test_identity_email_domain_must_be_authorized(self):
+        """An identity email on an unknown domain is rejected."""
+        with self.assertRaises(ValidationError):
+            self.env["user.signature.company"].create(
+                {
+                    "user_id": self.user.id,
+                    "company_id": self.company_a.id,
+                    "email": "someone@totally-unknown-domain.example",
+                }
+            )
+
+    def test_identity_email_domain_authorized_passes(self):
+        """An identity email whose domain has a mail server / alias domain is ok."""
+        srv = self.env["ir.mail_server"].create(
+            {
+                "name": "Test parts",
+                "smtp_host": "smtp.example.com",
+                "from_filter": "steen-parts-test.be",
+            }
+        )
+        self.assertTrue(srv)
+        rec = self.env["user.signature.company"].create(
+            {
+                "user_id": self.user.id,
+                "company_id": self.company_a.id,
+                "email": "ok@steen-parts-test.be",
+            }
+        )
+        self.assertTrue(rec.id)
 
     def test_template_company_mismatch_blocked(self):
         """Can't assign a template from a different company."""
