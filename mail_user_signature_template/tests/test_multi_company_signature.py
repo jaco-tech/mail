@@ -484,6 +484,46 @@ class TestMultiCompanySignature(TransactionCase):
                 }
             )
 
+    def test_manager_can_write_other_users_identity(self):
+        """A Signature Manager (trusted admin role, NOT sysadmin) can create an
+        identity row for ANOTHER user."""
+        manager_group_id = self.env.ref(
+            "mail_user_signature_template.group_signature_template_manager"
+        ).id
+        manager = self.env["res.users"].create(
+            {
+                "name": "Sig Manager",
+                "login": "sig_manager_user",
+                "email": "mgr@a.be",
+                "company_id": self.company_a.id,
+                "company_ids": [(6, 0, [self.company_a.id])],
+                "group_ids": [(6, 0, [manager_group_id])],
+            }
+        )
+        # Manager must NOT be a system admin for this test to be meaningful.
+        self.assertFalse(manager.has_group("base.group_system"))
+        other = self.env["res.users"].create(
+            {
+                "name": "Managed Person",
+                "login": "managed_by_manager",
+                "email": "managed@a.be",
+                "company_id": self.company_a.id,
+                "company_ids": [(6, 0, [self.company_a.id])],
+            }
+        )
+        row = (
+            self.env["user.signature.company"]
+            .with_user(manager)
+            .create(
+                {
+                    "user_id": other.id,
+                    "company_id": self.company_a.id,
+                }
+            )
+        )
+        self.assertTrue(row.id)
+        self.assertEqual(row.user_id, other)
+
     def test_regular_user_can_read_own_identity(self):
         """A plain user can still READ their own identity row."""
         plain = self.env["res.users"].create(

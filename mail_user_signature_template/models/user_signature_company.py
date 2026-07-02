@@ -40,7 +40,9 @@ class UserSignatureCompany(models.Model):
     @api.depends("user_id.name", "company_id.name")
     def _compute_display_name(self):
         for rec in self:
-            rec.display_name = f"{rec.user_id.name} — {rec.company_id.name}"
+            rec.display_name = (
+                " — ".join(filter(None, [rec.user_id.name, rec.company_id.name])) or ""
+            )
 
     _user_company_unique = models.Constraint(
         "UNIQUE(user_id, company_id)",
@@ -55,7 +57,13 @@ class UserSignatureCompany(models.Model):
         access could otherwise reassign their row to another user (bypassing
         the unique constraint on create, or poisoning another user's data).
         """
-        if self.env.su or self.env.user.has_group("base.group_system"):
+        if (
+            self.env.su
+            or self.env.user.has_group("base.group_system")
+            or self.env.user.has_group(
+                "mail_user_signature_template.group_signature_template_manager"
+            )
+        ):
             return
         for record in self:
             if record.user_id.id != self.env.user.id:
