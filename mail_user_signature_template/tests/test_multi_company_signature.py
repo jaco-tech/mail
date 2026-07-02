@@ -187,7 +187,15 @@ class TestMultiCompanySignature(TransactionCase):
     # ------------------------------------------------------------------
 
     def test_composer_email_from_uses_company_email(self):
-        """mail.compose.message substitutes email_from with per-company email."""
+        """mail.compose.message substitutes email_from with per-company email.
+
+        The record has no company_id, so core's _mail_get_companies resolves
+        record_company_id to the default (env.company = company_b) and the
+        composer picks up company_b's per-company email override.
+        """
+        no_company_partner = self.env["res.partner"].create(
+            {"name": "NoCompany", "company_id": False}
+        )
         Composer = self.env["mail.compose.message"].with_user(self.user)
         composer = Composer.with_company(self.company_b).create(
             {
@@ -195,9 +203,11 @@ class TestMultiCompanySignature(TransactionCase):
                 "body": "hello",
                 "composition_mode": "comment",
                 "model": "res.partner",
-                "res_ids": str([self.env.user.partner_id.id]),
+                "res_ids": str([no_company_partner.id]),
             }
         )
+        # No company on the record -> record_company_id resolves to env.company.
+        self.assertEqual(composer.record_company_id, self.company_b)
         self.assertIn("annsophie@steen-parts-test.be", composer.email_from)
         # author_id must stay the acting user's partner
         self.assertEqual(composer.author_id, self.user.partner_id)
@@ -216,6 +226,45 @@ class TestMultiCompanySignature(TransactionCase):
         )
         # company A has no per-company email override → should match user.email
         self.assertIn("annsophie@company-a-test.be", composer.email_from)
+
+    def test_composer_respects_default_email_from(self):
+        """A context-forced default_email_from is not overridden (finding 5).
+
+        env.company is company_b (which HAS a per-company email override), so
+        without the guard our override would stomp email_from with the company_b
+        address. Forcing a recompute of _compute_authorship (the ORM otherwise
+        applies default_email_from as the create-time field default and skips the
+        compute entirely) proves the override's context guard is what preserves
+        the forced From.
+        """
+        Composer = self.env["mail.compose.message"].with_user(self.user)
+        composer = Composer.with_company(self.company_b).with_context(
+            default_email_from="forced@elsewhere.be"
+        ).create({
+            "subject": "T", "body": "x", "composition_mode": "comment",
+            "model": "res.partner", "res_ids": str([self.user.partner_id.id]),
+        })
+        # Force _compute_authorship to actually run in the default_email_from
+        # context so the override branch (not the create-time default) is tested.
+        composer._compute_authorship()
+        self.assertIn("forced@elsewhere.be", composer.email_from)
+
+    def test_composer_keys_on_record_company(self):
+        """email_from follows the record's company, not the navbar company."""
+        # A partner belonging to company_b, composed while env company is company_a.
+        partner_b = self.env["res.partner"].create(
+            {"name": "PartB", "company_id": self.company_b.id}
+        )
+        Composer = self.env["mail.compose.message"].with_user(self.user)
+        composer = Composer.with_company(self.company_a).create({
+            "subject": "T", "body": "x", "composition_mode": "comment",
+            "model": "res.partner", "res_ids": str([partner_b.id]),
+        })
+        # Prove the record-company path: record_company_id resolves to company_b
+        # (res.partner._mail_get_companies surfaces the partner's company_id),
+        # NOT the env.company (company_a) that the composer runs under.
+        self.assertEqual(composer.record_company_id, self.company_b)
+        self.assertIn("annsophie@steen-parts-test.be", composer.email_from)
 
     # ------------------------------------------------------------------
     # Integration: mail.thread._notify_by_email_prepare_rendering_context
