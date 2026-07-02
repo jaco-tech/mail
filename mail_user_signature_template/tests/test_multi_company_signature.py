@@ -1,5 +1,7 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
+from markupsafe import Markup
+
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
@@ -340,8 +342,6 @@ class TestMultiCompanySignature(TransactionCase):
     def test_signature_fallback_escapes_user_name(self):
         """HTML in a user's name is escaped in the fallback signature
         (review finding 7 — no injection into outbound email)."""
-        from markupsafe import Markup
-
         evil = self.env["res.users"].create({
             "name": '<a href="https://evil">reset</a>',
             "login": "evil_name_user",
@@ -358,6 +358,35 @@ class TestMultiCompanySignature(TransactionCase):
         self.assertIsInstance(sig, Markup)
         self.assertIn("&lt;a href", sig)          # escaped
         self.assertNotIn("<a href", sig)          # not raw
+
+    def test_stored_signature_branch_returns_markup_no_double_escape(self):
+        """The STORED-signature fallback branch must return a markupsafe.Markup
+        so mail_thread's ``Markup(...) % signature`` insertion does NOT
+        double-escape a real custom signature (cold-cache regression guard).
+
+        A TransactionCase can't produce a genuinely cold ORM cache, so this
+        asserts the invariant at the type level plus a no-double-escape check.
+        """
+        user = self.env["res.users"].create({
+            "name": "Custom Sig User",
+            "login": "custom_sig_user",
+            "email": "custom@company-a-test.be",
+            "company_id": self.company_a.id,
+            "company_ids": [(6, 0, [self.company_a.id])],
+        })
+        # Force the stored-signature branch: no templates, a non-empty custom
+        # signature containing HTML.
+        self.company_a.use_signature_templates = False
+        user.signature = "<p>Custom <b>Sig</b></p>"
+
+        result = user._get_company_signature(self.company_a)
+        self.assertIsInstance(result, Markup)
+
+        # Wrapping via %-insertion (as mail_thread does) must not escape the
+        # already-safe HTML: the <b> tag survives, it is not turned into &lt;b&gt;.
+        wrapped = Markup("<div>%s</div>") % result
+        self.assertIn("<b>Sig</b>", wrapped)
+        self.assertNotIn("&lt;b&gt;", wrapped)
 
     def test_get_company_email_handles_newid(self):
         """_get_company_email on an unsaved record returns falsy, no crash."""

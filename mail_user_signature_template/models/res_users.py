@@ -136,8 +136,11 @@ class ResUsers(models.Model):
                 and user.name
                 and is_html_empty(user.signature)
             ):
-                # Default signature only if no custom signature exists
-                user.signature = f"<p>--<br />{user.name}</p>"
+                # Default signature only if no custom signature exists.
+                # Escape the name: the field sanitizer preserves <a href>, so
+                # escaping here is the correct defense and stays consistent with
+                # the fallback in _get_company_signature.
+                user.signature = Markup("<p>--<br/>%s</p>") % user.name
             # If signature already has value and not using template,
             # keep existing value (this is the custom signature)
 
@@ -208,9 +211,12 @@ class ResUsers(models.Model):
         if use_template and template:
             return Markup(template._render_signature(self, company=company))
 
-        # Fallback to stored signature (already sanitized) or an escaped default
+        # Fallback to stored signature (already sanitized) or an escaped default.
+        # Wrap in Markup: a cold ORM-cache read of ``signature`` yields a raw
+        # ``str``, and mail_thread inserts this via ``%`` formatting which would
+        # otherwise double-escape a real custom signature in outbound email.
         if not is_html_empty(self.signature):
-            return self.signature
+            return Markup(self.signature)
         return Markup("<p>--<br/>%s</p>") % self.name
 
     # ------------------------------------------------------------------
