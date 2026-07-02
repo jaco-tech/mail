@@ -301,35 +301,27 @@ class SignatureTemplate(models.Model):
             user.id, size="128", env=self.env
         )
         values["user_image"] = Markup(
-            f'<img src="{avatar_url}" '
-            f'alt="{user.name}" '
-            f'width="64" height="64" '
-            f'style="display:block;border:0;object-fit:cover;" />'
-        )
+            '<img src="%s" alt="%s" width="64" height="64" '
+            'style="display:block;border:0;object-fit:cover;" />'
+        ) % (avatar_url, user.name)
         # avatar_256 for larger avatars in templates (use public URL)
         avatar_url_large = PublicSignatureImage.get_public_avatar_url(
             user.id, size="256", env=self.env
         )
         values["user_image_large"] = Markup(
-            f'<img src="{avatar_url_large}" '
-            f'alt="{user.name}" '
-            f'width="116" height="116" '
-            f'style="display:block;object-fit:cover;border:0;" />'
-        )
+            '<img src="%s" alt="%s" width="116" height="116" '
+            'style="display:block;object-fit:cover;border:0;" />'
+        ) % (avatar_url_large, user.name)
 
         # Circular versions with border-radius
         values["user_image_round"] = Markup(
-            f'<img src="{avatar_url}" '
-            f'alt="{user.name}" '
-            f'width="64" height="64" '
-            f'style="display:block;border-radius:50%;border:0;object-fit:cover;" />'
-        )
+            '<img src="%s" alt="%s" width="64" height="64" '
+            'style="display:block;border-radius:50%%;border:0;object-fit:cover;" />'
+        ) % (avatar_url, user.name)
         values["user_image_large_round"] = Markup(
-            f'<img src="{avatar_url_large}" '
-            f'alt="{user.name}" '
-            f'width="116" height="116" '
-            f'style="display:block;border-radius:50%;object-fit:cover;border:0;" />'
-        )
+            '<img src="%s" alt="%s" width="116" height="116" '
+            'style="display:block;border-radius:50%%;object-fit:cover;border:0;" />'
+        ) % (avatar_url_large, user.name)
 
         # Just the avatar URL for custom styling in templates
         values["user_image_url"] = avatar_url
@@ -346,22 +338,16 @@ class SignatureTemplate(models.Model):
             if company.signature_logo_url:
                 # Use custom external URL if provided (override)
                 values["company_logo"] = Markup(
-                    f'<img src="{company.signature_logo_url}" '
-                    f'alt="{company.name}" '
-                    f'width="{width}" '
-                    f'style="{style}" />'
-                )
+                    '<img src="%s" alt="%s" width="%s" style="%s" />'
+                ) % (company.signature_logo_url, company.name, width, style)
             elif company.logo:
                 # Use public URL for company logo to work with Gmail proxy
                 logo_url = PublicSignatureImage.get_public_logo_url(
                     company.id, env=self.env
                 )
                 values["company_logo"] = Markup(
-                    f'<img src="{logo_url}" '
-                    f'alt="{company.name}" '
-                    f'width="{width}" '
-                    f'style="{style}" />'
-                )
+                    '<img src="%s" alt="%s" width="%s" style="%s" />'
+                ) % (logo_url, company.name, width, style)
             else:
                 values["company_logo"] = ""
         else:

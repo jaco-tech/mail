@@ -83,9 +83,28 @@ class MailComposeMessage(models.TransientModel):
         ``sending_company_id`` is only read when ``self`` is a singleton;
         reading it on a multi-record composer set would raise "Expected
         singleton".
+
+        DEFERRED LIMITATION (review finding 4): the force is set on the env for
+        the whole ``_action_send_mail`` call, so any NESTED ``message_post`` on
+        OTHER records during the send (e.g. automated logs / activity feedback)
+        inherits it too. Cleanly scoping the force to only the composed
+        model/res_ids would require threading and matching that target through
+        ``_signature_sending_company`` at every post site, which is not low-risk
+        here. It is bounded to a correctness (not security) quirk: the helper's
+        identity gate guarantees the forced company is always one of the acting
+        user's OWN identities, never an arbitrary company. Tracked as a
+        follow-up rather than forced now, to avoid regressions.
         """
         composers = self
-        if len(self) == 1 and self.sending_company_id:
+        # SECURITY (defense in depth): only thread the force when the chosen
+        # company is one of the acting user's own identities. The helper gate
+        # is the real chokepoint; this avoids ever propagating a disallowed
+        # value in the first place.
+        if (
+            len(self) == 1
+            and self.sending_company_id
+            and self.sending_company_id in self.env.user._identity_company_ids()
+        ):
             composers = self.with_context(
                 force_sending_company_id=self.sending_company_id.id
             )

@@ -680,6 +680,58 @@ class TestMultiCompanySignature(TransactionCase):
         new_user = self.env["res.users"].new({"name": "Draft"})
         self.assertFalse(new_user._get_company_email(self.company_a))
 
+    def test_signature_escapes_malicious_user_name(self):
+        """A user-settable name containing HTML is escaped in the rendered
+        avatar markup (review finding 1 — no injection into outbound email)."""
+        evil = self.env["res.users"].create({
+            "name": "<img src=x onerror=alert(1)>",
+            "login": "evil_avatar_user",
+            "email": "evil_avatar@company-a-test.be",
+            "company_id": self.company_a.id,
+            "company_ids": [(6, 0, [self.company_a.id])],
+        })
+        template = self.env["signature.template"].create({
+            "name": "Avatar Template",
+            "body_html": '<div><t t-out="user_image"/></div>',
+            "company_id": self.company_a.id,
+        })
+        sig = template._render_signature(evil, company=self.company_a)
+        # The raw payload must not survive; it must be HTML-escaped.
+        self.assertNotIn("<img src=x onerror=alert(1)>", sig)
+        self.assertIn("&lt;img", sig)
+
+    def test_crafted_sending_company_is_ignored(self):
+        """A forced sending company the user has NO identity for is ignored;
+        resolution falls back to the record/home company, no AccessError
+        (review finding 2)."""
+        company_c = self.env["res.company"].create({
+            "name": "Crafted Evil Co",
+        })
+        company_c.use_signature_templates = True
+        # Sanity: company_c is neither the user's home nor a configured identity.
+        self.assertNotIn(company_c, self.user._identity_company_ids())
+
+        partner = self.env["res.partner"].create(
+            {"name": "CraftRcpt", "email": "craft@example.com"}
+        )
+        partner.message_subscribe(partner_ids=self.user.partner_id.ids)
+        record = partner.with_user(self.user).with_company(self.company_b)
+        message = record.message_post(
+            body="Hello", subject="Craft", message_type="comment",
+            subtype_xmlid="mail.mt_comment", email_add_signature=True,
+        )
+        # Craft a context forcing a company the user may NOT send as.
+        crafted = record.with_context(force_sending_company_id=company_c.id)
+        render_values = crafted._notify_by_email_prepare_rendering_context(
+            message, msg_vals={}
+        )
+        signature_html = str(render_values.get("signature") or "")
+        # The forced company is ignored: its name must NOT appear. Resolution
+        # falls back to the posting/record company (company_b). No AccessError
+        # was raised reaching this point.
+        self.assertNotIn(company_c.name, signature_html)
+        self.assertIn(self.company_b.name, signature_html)
+
     def test_init_store_data_not_overridden(self):
         """The stored-field priming trick is gone (ADR-0002).
 
