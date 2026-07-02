@@ -41,3 +41,29 @@ class MailThread(models.AbstractModel):
             )
 
         return render_values
+
+    def _notify_by_email_get_base_mail_values(
+        self, message, recipients_data, additional_values=None
+    ):
+        """Set the per-company From so the notification routes via the right
+        outgoing mail server (from_filter) and does not leak the home company.
+
+        Keyed on the record's company (self.company_id) — the Sending Company —
+        falling back to env.company when the record has none. Never sets
+        reply_to (handled by Odoo's per-company alias domains).
+        """
+        vals = super()._notify_by_email_get_base_mail_values(
+            message, recipients_data, additional_values=additional_values
+        )
+        author_user = message.author_id.user_ids[:1]
+        if not author_user:
+            return vals
+        company = (
+            self.company_id
+            if "company_id" in self._fields and self.company_id
+            else self.env.company
+        )
+        company_email = author_user._get_company_email(company)
+        if company_email and company_email != author_user.email:
+            vals["email_from"] = author_user._get_company_email_formatted(company)
+        return vals

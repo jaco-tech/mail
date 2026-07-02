@@ -248,6 +248,26 @@ class TestMultiCompanySignature(TransactionCase):
         self.assertNotIn("annsophie@company-a-test.be", signature_html)
 
     # ------------------------------------------------------------------
+    # Integration: mail.thread._notify_by_email_get_base_mail_values
+    # ------------------------------------------------------------------
+
+    def test_notify_base_mail_values_sets_company_email_from(self):
+        """Notification emails carry the per-company From (review finding 6)."""
+        partner = self.env["res.partner"].create(
+            {"name": "Recipient2", "email": "recipient2@example.com"}
+        )
+        partner.message_subscribe(partner_ids=self.user.partner_id.ids)
+        record = partner.with_user(self.user).with_company(self.company_b)
+        message = record.message_post(
+            body="Hi", subject="S", message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        vals = record._notify_by_email_get_base_mail_values(message, [])
+        self.assertIn("annsophie@steen-parts-test.be", vals.get("email_from", ""))
+        # reply_to must NOT be overridden by us
+        self.assertNotIn("reply_to", vals)
+
+    # ------------------------------------------------------------------
     # Security: record rules and constraints
     # ------------------------------------------------------------------
 
