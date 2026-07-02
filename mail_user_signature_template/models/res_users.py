@@ -3,6 +3,8 @@
 
 from email.utils import formataddr
 
+from markupsafe import Markup
+
 from odoo import _, api, fields, models
 from odoo.orm.identifiers import NewId
 from odoo.tools import is_html_empty
@@ -149,6 +151,8 @@ class ResUsers(models.Model):
         :param company: res.company record (defaults to self.env.company)
         """
         self.ensure_one()
+        if not self.id or isinstance(self.id, NewId):
+            return ""
         company = company or self.env.company
         sig_company = self.env["user.signature.company"]._get_for_user_company(
             self, company
@@ -202,12 +206,12 @@ class ResUsers(models.Model):
             template = company.default_signature_template_id
 
         if use_template and template:
-            return template._render_signature(self, company=company)
+            return Markup(template._render_signature(self, company=company))
 
-        # Fallback to stored signature or default
+        # Fallback to stored signature (already sanitized) or an escaped default
         if not is_html_empty(self.signature):
             return self.signature
-        return f"<p>--<br />{self.name}</p>"
+        return Markup("<p>--<br/>%s</p>") % self.name
 
     # ------------------------------------------------------------------
     # CRUD

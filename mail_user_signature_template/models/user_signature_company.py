@@ -93,8 +93,13 @@ class UserSignatureCompany(models.Model):
 
     @api.model
     def _get_for_user_company(self, user, company):
-        """Find per-company signature record, return empty recordset if none."""
-        return self.search(
+        """Find per-company signature record, return empty recordset if none.
+
+        Runs as sudo: this data is not confidential to the system, and the
+        own-record rule would otherwise hide the author's row when a
+        notification/recompute runs in another user's env (review finding 4).
+        """
+        return self.sudo().search(
             [("user_id", "=", user.id), ("company_id", "=", company.id)],
             limit=1,
         )

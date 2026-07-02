@@ -37,7 +37,7 @@ class MailThread(models.AbstractModel):
         company_signature = author_user._get_company_signature(company)
         if company_signature:
             render_values["signature"] = (
-                Markup("<div>-- <br/>%s</div>") % Markup(company_signature)
+                Markup("<div>-- <br/>%s</div>") % company_signature
             )
 
         return render_values

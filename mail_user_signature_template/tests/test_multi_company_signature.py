@@ -333,6 +333,37 @@ class TestMultiCompanySignature(TransactionCase):
         # user.company_id is company_a → stored signature reflects company_a
         self.assertIn(self.company_a.name, self.user.signature or "")
 
+    # ------------------------------------------------------------------
+    # Hardening: HTML escaping in fallback + NewId guard (Task 2)
+    # ------------------------------------------------------------------
+
+    def test_signature_fallback_escapes_user_name(self):
+        """HTML in a user's name is escaped in the fallback signature
+        (review finding 7 — no injection into outbound email)."""
+        from markupsafe import Markup
+
+        evil = self.env["res.users"].create({
+            "name": '<a href="https://evil">reset</a>',
+            "login": "evil_name_user",
+            "email": "evil@company-a-test.be",
+            "company_id": self.company_a.id,
+            "company_ids": [(6, 0, [self.company_a.id])],
+        })
+        # No per-company row, no template → name-based fallback path.
+        # Disable templates on the company and clear any stored signature so
+        # the branch under test (name fallback) is genuinely hit.
+        self.company_a.use_signature_templates = False
+        evil.signature = False
+        sig = evil._get_company_signature(self.company_a)
+        self.assertIsInstance(sig, Markup)
+        self.assertIn("&lt;a href", sig)          # escaped
+        self.assertNotIn("<a href", sig)          # not raw
+
+    def test_get_company_email_handles_newid(self):
+        """_get_company_email on an unsaved record returns falsy, no crash."""
+        new_user = self.env["res.users"].new({"name": "Draft"})
+        self.assertFalse(new_user._get_company_email(self.company_a))
+
     def test_init_store_data_not_overridden(self):
         """The stored-field priming trick is gone (ADR-0002).
 
