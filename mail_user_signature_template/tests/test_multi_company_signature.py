@@ -334,6 +334,17 @@ class TestMultiCompanySignature(TransactionCase):
         self.assertIn(self.company_a.name, self.user.signature or "")
 
     def test_init_store_data_not_overridden(self):
-        """The stored-field priming trick is gone (ADR-0002)."""
-        self.assertNotIn("_init_store_data", vars(type(self.user)))
+        """The stored-field priming trick is gone (ADR-0002).
+
+        The mail module legitimately defines `_init_store_data`; this guards
+        that OUR module no longer overrides it. `__module__` of the resolved
+        method must therefore point at the mail addon, not at this module —
+        reintroducing our override would flip it and fail this assertion.
+        """
+        method = type(self.user)._init_store_data
+        self.assertNotIn(
+            "mail_user_signature_template",
+            method.__module__,
+            "res.users._init_store_data must not be overridden by this module",
+        )
 
