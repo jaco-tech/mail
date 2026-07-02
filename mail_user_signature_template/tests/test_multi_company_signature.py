@@ -267,6 +267,45 @@ class TestMultiCompanySignature(TransactionCase):
         self.assertIn("annsophie@steen-parts-test.be", composer.email_from)
 
     # ------------------------------------------------------------------
+    # Task 5: "Send as" manual override on the composer
+    # ------------------------------------------------------------------
+
+    def test_identity_company_ids_lists_home_plus_configured(self):
+        """Selectable 'send as' companies = home company + configured identities."""
+        companies = self.user._identity_company_ids()
+        self.assertIn(self.company_a, companies)  # home
+        self.assertIn(self.company_b, companies)  # configured identity
+        basic = self.env["res.users"].create({
+            "name": "Solo", "login": "solo_identity", "email": "solo@a.be",
+            "company_id": self.company_a.id,
+            "company_ids": [(6, 0, [self.company_a.id])],
+        })
+        self.assertEqual(basic._identity_company_ids(), self.company_a)
+
+    def test_send_as_override_flips_from_and_signature(self):
+        """Overriding sending_company_id drives both From and signature."""
+        partner = self.env["res.partner"].create(
+            {"name": "Rcpt3", "email": "r3@example.com", "company_id": self.company_a.id}
+        )
+        Composer = self.env["mail.compose.message"].with_user(self.user)
+        composer = Composer.with_company(self.company_a).create({
+            "subject": "T", "body": "x", "composition_mode": "comment",
+            "model": "res.partner", "res_ids": str([partner.id]),
+            "sending_company_id": self.company_b.id,
+        })
+        # From flips to company_b identity even though record/env are company_a
+        self.assertIn("annsophie@steen-parts-test.be", composer.email_from)
+        # Signature (via notify hook honoring the forced company) is company_b's
+        partner.message_subscribe(partner_ids=self.user.partner_id.ids)
+        record = partner.with_user(self.user).with_context(
+            force_sending_company_id=self.company_b.id
+        )
+        msg = record.message_post(body="x", message_type="comment",
+                                  subtype_xmlid="mail.mt_comment")
+        ctx = record._notify_by_email_prepare_rendering_context(msg, msg_vals={})
+        self.assertIn(self.company_b.name, str(ctx.get("signature") or ""))
+
+    # ------------------------------------------------------------------
     # Integration: mail.thread._notify_by_email_prepare_rendering_context
     # ------------------------------------------------------------------
 

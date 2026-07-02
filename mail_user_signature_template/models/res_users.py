@@ -148,6 +148,12 @@ class ResUsers(models.Model):
     # Multi-company signature helpers
     # ------------------------------------------------------------------
 
+    def _identity_company_ids(self):
+        """Companies this user may send as: Home Company + configured identities."""
+        self.ensure_one()
+        configured = self.signature_company_ids.mapped("company_id")
+        return self.company_id | configured
+
     def _get_company_email(self, company=None):
         """Return the per-company email for this user, or fall back to user.email.
 

@@ -24,6 +24,7 @@
         "views/res_company_views.xml",
         "views/res_users_views.xml",
         "views/user_signature_company_views.xml",
+        "views/mail_compose_message_views.xml",
         "wizard/signature_template_preview_views.xml",
         "data/utm_data.xml",
         "data/signature_template_data.xml",

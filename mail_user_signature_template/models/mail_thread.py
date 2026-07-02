@@ -8,6 +8,16 @@ from odoo import models
 class MailThread(models.AbstractModel):
     _inherit = "mail.thread"
 
+    def _signature_sending_company(self):
+        """Resolve the company that drives the From address and signature:
+        forced "Send As" context → record company → env.company."""
+        forced = self.env.context.get("force_sending_company_id")
+        if forced:
+            return self.env["res.company"].browse(forced)
+        if "company_id" in self._fields and self.company_id:
+            return self.company_id
+        return self.env.company
+
     def _notify_by_email_prepare_rendering_context(
         self, message, msg_vals=False,
         model_description=False,
@@ -31,8 +41,9 @@ class MailThread(models.AbstractModel):
         if not author_user or not email_add_signature:
             return render_values
 
-        # Determine the correct company for this notification
-        company = render_values.get("company") or self.env.company
+        # Determine the correct company for this notification (honoring a
+        # forced "Send As" company from the composer, if any).
+        company = self._signature_sending_company()
 
         company_signature = author_user._get_company_signature(company)
         if company_signature:
@@ -48,8 +59,8 @@ class MailThread(models.AbstractModel):
         """Set the per-company From so the notification routes via the right
         outgoing mail server (from_filter) and does not leak the home company.
 
-        Keyed on the record's company (self.company_id) — the Sending Company —
-        falling back to env.company when the record has none. Never sets
+        Keyed on the Sending Company resolved by ``_signature_sending_company``
+        (forced "Send As" context → record company → env.company). Never sets
         reply_to (handled by Odoo's per-company alias domains).
         """
         vals = super()._notify_by_email_get_base_mail_values(
@@ -58,11 +69,7 @@ class MailThread(models.AbstractModel):
         author_user = message.author_id.user_ids[:1]
         if not author_user:
             return vals
-        company = (
-            self.company_id
-            if "company_id" in self._fields and self.company_id
-            else self.env.company
-        )
+        company = self._signature_sending_company()
         company_email = author_user._get_company_email(company)
         if company_email and company_email != author_user.email:
             vals["email_from"] = author_user._get_company_email_formatted(company)

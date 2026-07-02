@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="mail_compose_message_form_send_as" model="ir.ui.view">
+        <field name="name">mail.compose.message.form.send.as</field>
+        <field name="model">mail.compose.message</field>
+        <field name="inherit_id" ref="mail.email_compose_message_wizard_form"/>
+        <field name="arch" type="xml">
+            <field name="subject" position="before">
+                <field name="show_sending_company" invisible="1"/>
+                <field name="allowed_sending_company_ids" invisible="1"/>
+                <field name="sending_company_id"
+                       invisible="not show_sending_company"
+                       options="{'no_create': True, 'no_open': True}"
+                       domain="[('id', 'in', allowed_sending_company_ids)]"/>
+            </field>
+        </field>
+    </record>
+</odoo>
