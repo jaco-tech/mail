@@ -595,6 +595,21 @@ class TestMultiCompanySignature(TransactionCase):
                 }
             )
 
+    def test_identity_company_must_be_in_user_companies(self):
+        """An identity for a company outside the user's company_ids is rejected."""
+        outsider_company = self.env["res.company"].create(
+            {"name": "Outsider Co"}
+        )
+        # self.user is a member of company_a and company_b only.
+        self.assertNotIn(outsider_company, self.user.company_ids)
+        with self.assertRaises(ValidationError):
+            self.env["user.signature.company"].create(
+                {
+                    "user_id": self.user.id,
+                    "company_id": outsider_company.id,
+                }
+            )
+
     # ------------------------------------------------------------------
     # ADR-0001 / ADR-0002: unrestricted render, no stored poisoning
     # ------------------------------------------------------------------

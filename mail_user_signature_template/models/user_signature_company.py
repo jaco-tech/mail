@@ -89,6 +89,30 @@ class UserSignatureCompany(models.Model):
                     )
                 )
 
+    @api.constrains("company_id", "user_id")
+    def _check_company_in_user_companies(self):
+        """Ensure the identity's company is one the user actually belongs to.
+
+        The send path sudo()s the forced company, so an identity configured for
+        a company outside the user's ``company_ids`` could let that user send as
+        a company they are not a member of. Reject it server-side.
+        """
+        for rec in self:
+            if (
+                rec.company_id
+                and rec.user_id
+                and rec.company_id not in rec.user_id.company_ids
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "Company '%(co)s' is not one of %(user)s's allowed "
+                        "companies. Configure a signature identity only for a "
+                        "company the user belongs to.",
+                        co=rec.company_id.name,
+                        user=rec.user_id.name,
+                    )
+                )
+
     @api.constrains("email")
     def _check_email_domain_authorized(self):
         """Warn (block) when the From domain has no authorized outgoing server
