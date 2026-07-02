@@ -33,6 +33,23 @@
                     placeholder="Type your custom signature here..."
                     readonly="use_signature_template"
                 />
+                <separator string="Per-Company Email &amp; Signature" />
+                <field
+                    name="signature_company_ids"
+                    context="{'default_user_id': id}"
+                >
+                    <list editable="bottom">
+                        <field name="user_id" column_invisible="1" />
+                        <field name="company_id" />
+                        <field name="email" placeholder="Default email" />
+                        <field name="use_signature_template" />
+                        <field
+                            name="signature_template_id"
+                            invisible="not use_signature_template"
+                            options="{'no_create': True}"
+                        />
+                    </list>
+                </field>
             </xpath>
         </field>
     </record>

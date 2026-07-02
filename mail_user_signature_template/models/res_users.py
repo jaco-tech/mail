@@ -1,6 +1,8 @@
 # Copyright 2025 OCA Contributors
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
+from email.utils import formataddr
+
 from odoo import _, api, fields, models
 from odoo.orm.identifiers import NewId
 from odoo.tools import is_html_empty
@@ -35,6 +37,12 @@ class ResUsers(models.Model):
         "signature.template",
         string="Signature Template (stored)",
         help="Internal field to store user selection",
+    )
+
+    signature_company_ids = fields.One2many(
+        "user.signature.company",
+        "user_id",
+        string="Per-Company Signature Settings",
     )
 
     @api.depends(
@@ -115,8 +123,10 @@ class ResUsers(models.Model):
                 and user.signature_template_id
                 and user.company_id.use_signature_templates
             ):
-                # Use template
-                user.signature = user.signature_template_id._render_signature(user)
+                # Use template — render with current env company
+                user.signature = user.signature_template_id._render_signature(
+                    user, company=user.env.company
+                )
             elif (
                 not user.use_signature_template
                 and user.name
@@ -126,6 +136,98 @@ class ResUsers(models.Model):
                 user.signature = f"<p>--<br />{user.name}</p>"
             # If signature already has value and not using template,
             # keep existing value (this is the custom signature)
+
+    # ------------------------------------------------------------------
+    # Multi-company signature helpers
+    # ------------------------------------------------------------------
+
+    def _get_company_email(self, company=None):
+        """Return the per-company email for this user, or fall back to user.email.
+
+        :param company: res.company record (defaults to self.env.company)
+        """
+        self.ensure_one()
+        company = company or self.env.company
+        sig_company = self.env["user.signature.company"]._get_for_user_company(
+            self, company
+        )
+        if sig_company and sig_company.email:
+            return sig_company.email
+        return self.email
+
+    def _get_company_email_formatted(self, company=None):
+        """Return formatted 'Name <email>' for the given company context."""
+        self.ensure_one()
+        email = self._get_company_email(company)
+        return formataddr((self.name, email))
+
+    def _get_company_signature(self, company=None):
+        """Render and return the signature for a specific company context.
+
+        Looks up per-company template preference, falls back to the user's
+        default template, then to the stored signature field.
+
+        :param company: res.company record (defaults to self.env.company)
+        """
+        self.ensure_one()
+        if not self.id or isinstance(self.id, NewId):
+            return ""
+
+        company = company or self.env.company
+
+        # Determine template and use_template for this company
+        sig_company = self.env["user.signature.company"]._get_for_user_company(
+            self, company
+        )
+
+        if sig_company:
+            use_template = sig_company.use_signature_template
+            template = sig_company.signature_template_id
+        else:
+            # Fallback to user-level fields
+            use_template = self.use_signature_template
+            template = self.signature_template_id
+
+        # Company-level overrides
+        if not company.use_signature_templates:
+            use_template = False
+        elif company.force_signature_template and company.default_signature_template_id:
+            use_template = True
+            template = company.default_signature_template_id
+
+        # If no per-company template set, try company default
+        if use_template and not template and company.default_signature_template_id:
+            template = company.default_signature_template_id
+
+        if use_template and template:
+            return template._render_signature(self, company=company)
+
+        # Fallback to stored signature or default
+        if not is_html_empty(self.signature):
+            return self.signature
+        return f"<p>--<br />{self.name}</p>"
+
+    @api.model
+    def _init_store_data(self, store):
+        """Prime the active-company signature before super() serializes it.
+
+        The parent (mail module) adds `signature` to the JS store by reading
+        the stored field on the current user.  `signature` is computed with
+        `user.env.company`, so its stored value reflects whichever company
+        was active the last time it was computed.  When the user switches
+        company, `_init_store_data` is called again in the new context and
+        we re-render here so the parent picks up the correct value.
+        """
+        if not self.env.user._is_public():
+            user = self.env.user
+            company_signature = user._get_company_signature()
+            if company_signature and user.signature != company_signature:
+                user.signature = company_signature
+        super()._init_store_data(store)
+
+    # ------------------------------------------------------------------
+    # CRUD
+    # ------------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):

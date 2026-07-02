@@ -1,0 +1,44 @@
+<odoo>
+    <!-- Form View -->
+    <record id="view_user_signature_company_form" model="ir.ui.view">
+        <field name="name">user.signature.company.form</field>
+        <field name="model">user.signature.company</field>
+        <field name="arch" type="xml">
+            <form string="Company Signature Settings">
+                <group>
+                    <group>
+                        <field name="user_id" readonly="1" />
+                        <field name="company_id" />
+                        <field name="email" placeholder="Leave empty to use default email" />
+                    </group>
+                    <group>
+                        <field name="use_signature_template" />
+                        <field
+                            name="signature_template_id"
+                            invisible="not use_signature_template"
+                            options="{'no_create': True}"
+                        />
+                    </group>
+                </group>
+            </form>
+        </field>
+    </record>
+
+    <!-- List View -->
+    <record id="view_user_signature_company_list" model="ir.ui.view">
+        <field name="name">user.signature.company.list</field>
+        <field name="model">user.signature.company</field>
+        <field name="arch" type="xml">
+            <list string="Company Signature Settings" editable="bottom">
+                <field name="company_id" />
+                <field name="email" placeholder="Default email" />
+                <field name="use_signature_template" />
+                <field
+                    name="signature_template_id"
+                    invisible="not use_signature_template"
+                    options="{'no_create': True}"
+                />
+            </list>
+        </field>
+    </record>
+</odoo>

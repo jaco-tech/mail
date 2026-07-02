@@ -212,32 +212,42 @@ class SignatureTemplate(models.Model):
             )
         )
 
-    def _get_render_values(self, user):  # noqa: C901
-        """Get values for rendering the signature template."""
+    def _get_render_values(self, user, company=None):  # noqa: C901
+        """Get values for rendering the signature template.
+
+        :param user: res.users record
+        :param company: res.company record to use for company data.
+            Defaults to user.env.company (the current UI company).
+        """
+        company = company or user.env.company
+        # Per-company email: check user.signature.company, fallback to user.email
+        email = user.email or ""
+        if hasattr(user, "_get_company_email"):
+            email = user._get_company_email(company) or email
         values = {
             "name": user.name or "",
-            "email": user.email or "",
+            "email": email,
             "phone": user.phone or "",
             "mobile_phone": getattr(user, 'mobile_phone', '') or "",
             "function": user.function or "",
-            "company_name": user.company_id.name or "",
-            "website": user.company_id.website or "",
-            "company_email": user.company_id.email or "",
-            "company_phone": user.company_id.phone or "",
+            "company_name": company.name or "",
+            "website": company.website or "",
+            "company_email": company.email or "",
+            "company_phone": company.phone or "",
             "primary_color": (
-                user.company_id.email_primary_color
+                company.email_primary_color
                 if self.use_company_colors
                 else self.primary_color
             )
             or "#0066cc",
             "secondary_color": (
-                user.company_id.email_secondary_color
+                company.email_secondary_color
                 if self.use_company_colors
                 else self.secondary_color
             )
             or "#ff6600",
             "divider_color": (
-                user.company_id.email_primary_color
+                company.email_primary_color
                 if self.use_company_colors
                 else self.primary_color
             )
@@ -247,14 +257,14 @@ class SignatureTemplate(models.Model):
         values["mobile"] = values["mobile_phone"]
 
         # Build website URL with UTM tracking or just clean it up
-        if user.company_id.website:
+        if company.website:
             if self.use_utm_tracking:
                 values["website_url"] = self._build_utm_url(
-                    user.company_id.website, user
+                    company.website, user
                 )
             else:
                 # Even without UTM, we should clean up the URL
-                website = user.company_id.website.strip()
+                website = company.website.strip()
                 # Handle duplicate protocols
                 if website.startswith("https://https://"):
                     website = website[8:]
@@ -327,7 +337,6 @@ class SignatureTemplate(models.Model):
 
         # Add company logo if enabled
         if self.include_company_logo:
-            company = user.company_id
             width = company.signature_logo_width or 120
             style = (
                 "display:block;border:0;outline:none;text-decoration:none;"
@@ -360,7 +369,6 @@ class SignatureTemplate(models.Model):
 
         # Add social media URLs using Odoo's /website/social/<platform> routes
         # This provides built-in tracking and proper redirects
-        company = user.company_id
         base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
 
         social_platforms = {
@@ -397,13 +405,18 @@ class SignatureTemplate(models.Model):
 
         return values
 
-    def _render_signature(self, user):
-        """Render the signature template for a specific user."""
+    def _render_signature(self, user, company=None):
+        """Render the signature template for a specific user.
+
+        :param user: res.users record
+        :param company: res.company record for company context.
+            Defaults to user.env.company.
+        """
         self.ensure_one()
         if not self.body_html:
             return ""
 
-        values = self._get_render_values(user)
+        values = self._get_render_values(user, company=company)
 
         # Use qweb engine with proper QWeb syntax
         rendered = self._render_template(
