@@ -412,12 +412,6 @@ class TestSignatureTemplate(TransactionCase):
                 }
             )
 
-    def test_18_user_access_fields(self):
-        """Test _get_signature_access_fields method."""
-        fields = self.user_demo._get_signature_access_fields()
-        self.assertIn("use_signature_template", fields)
-        self.assertIn("signature_template_id", fields)
-
     def test_19_user_preview_signature(self):
         """Test action_preview_signature method."""
         # Ensure company is not forcing templates

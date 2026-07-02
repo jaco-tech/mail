@@ -4,7 +4,7 @@
 {
     "name": "User Signature Template",
     "summary": "Company-wide signature templates for consistent email signatures",
-    "version": "19.0.1.0.0",
+    "version": "19.0.2.1.0",
     "development_status": "Beta",
     "category": "Social Network",
     "website": "https://github.com/OCA/mail",
@@ -23,6 +23,7 @@
         "views/signature_template_views.xml",
         "views/res_company_views.xml",
         "views/res_users_views.xml",
+        "views/mail_compose_message_views.xml",
         "wizard/signature_template_preview_views.xml",
         "data/utm_data.xml",
         "data/signature_template_data.xml",

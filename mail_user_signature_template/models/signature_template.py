@@ -212,32 +212,42 @@ class SignatureTemplate(models.Model):
             )
         )
 
-    def _get_render_values(self, user):  # noqa: C901
-        """Get values for rendering the signature template."""
+    def _get_render_values(self, user, company=None):  # noqa: C901
+        """Get values for rendering the signature template.
+
+        :param user: res.users record
+        :param company: res.company record to use for company data.
+            Defaults to user.env.company (the current UI company).
+        """
+        company = company or user.env.company
+        # Per-company email: check user.signature.company, fallback to user.email
+        email = user.email or ""
+        if hasattr(user, "_get_company_email"):
+            email = user._get_company_email(company) or email
         values = {
             "name": user.name or "",
-            "email": user.email or "",
+            "email": email,
             "phone": user.phone or "",
             "mobile_phone": getattr(user, 'mobile_phone', '') or "",
             "function": user.function or "",
-            "company_name": user.company_id.name or "",
-            "website": user.company_id.website or "",
-            "company_email": user.company_id.email or "",
-            "company_phone": user.company_id.phone or "",
+            "company_name": company.name or "",
+            "website": company.website or "",
+            "company_email": company.email or "",
+            "company_phone": company.phone or "",
             "primary_color": (
-                user.company_id.email_primary_color
+                company.email_primary_color
                 if self.use_company_colors
                 else self.primary_color
             )
             or "#0066cc",
             "secondary_color": (
-                user.company_id.email_secondary_color
+                company.email_secondary_color
                 if self.use_company_colors
                 else self.secondary_color
             )
             or "#ff6600",
             "divider_color": (
-                user.company_id.email_primary_color
+                company.email_primary_color
                 if self.use_company_colors
                 else self.primary_color
             )
@@ -247,14 +257,14 @@ class SignatureTemplate(models.Model):
         values["mobile"] = values["mobile_phone"]
 
         # Build website URL with UTM tracking or just clean it up
-        if user.company_id.website:
+        if company.website:
             if self.use_utm_tracking:
                 values["website_url"] = self._build_utm_url(
-                    user.company_id.website, user
+                    company.website, user
                 )
             else:
                 # Even without UTM, we should clean up the URL
-                website = user.company_id.website.strip()
+                website = company.website.strip()
                 # Handle duplicate protocols
                 if website.startswith("https://https://"):
                     website = website[8:]
@@ -291,35 +301,27 @@ class SignatureTemplate(models.Model):
             user.id, size="128", env=self.env
         )
         values["user_image"] = Markup(
-            f'<img src="{avatar_url}" '
-            f'alt="{user.name}" '
-            f'width="64" height="64" '
-            f'style="display:block;border:0;object-fit:cover;" />'
-        )
+            '<img src="%s" alt="%s" width="64" height="64" '
+            'style="display:block;border:0;object-fit:cover;" />'
+        ) % (avatar_url, user.name)
         # avatar_256 for larger avatars in templates (use public URL)
         avatar_url_large = PublicSignatureImage.get_public_avatar_url(
             user.id, size="256", env=self.env
         )
         values["user_image_large"] = Markup(
-            f'<img src="{avatar_url_large}" '
-            f'alt="{user.name}" '
-            f'width="116" height="116" '
-            f'style="display:block;object-fit:cover;border:0;" />'
-        )
+            '<img src="%s" alt="%s" width="116" height="116" '
+            'style="display:block;object-fit:cover;border:0;" />'
+        ) % (avatar_url_large, user.name)
 
         # Circular versions with border-radius
         values["user_image_round"] = Markup(
-            f'<img src="{avatar_url}" '
-            f'alt="{user.name}" '
-            f'width="64" height="64" '
-            f'style="display:block;border-radius:50%;border:0;object-fit:cover;" />'
-        )
+            '<img src="%s" alt="%s" width="64" height="64" '
+            'style="display:block;border-radius:50%%;border:0;object-fit:cover;" />'
+        ) % (avatar_url, user.name)
         values["user_image_large_round"] = Markup(
-            f'<img src="{avatar_url_large}" '
-            f'alt="{user.name}" '
-            f'width="116" height="116" '
-            f'style="display:block;border-radius:50%;object-fit:cover;border:0;" />'
-        )
+            '<img src="%s" alt="%s" width="116" height="116" '
+            'style="display:block;border-radius:50%%;object-fit:cover;border:0;" />'
+        ) % (avatar_url_large, user.name)
 
         # Just the avatar URL for custom styling in templates
         values["user_image_url"] = avatar_url
@@ -327,7 +329,6 @@ class SignatureTemplate(models.Model):
 
         # Add company logo if enabled
         if self.include_company_logo:
-            company = user.company_id
             width = company.signature_logo_width or 120
             style = (
                 "display:block;border:0;outline:none;text-decoration:none;"
@@ -337,22 +338,16 @@ class SignatureTemplate(models.Model):
             if company.signature_logo_url:
                 # Use custom external URL if provided (override)
                 values["company_logo"] = Markup(
-                    f'<img src="{company.signature_logo_url}" '
-                    f'alt="{company.name}" '
-                    f'width="{width}" '
-                    f'style="{style}" />'
-                )
+                    '<img src="%s" alt="%s" width="%s" style="%s" />'
+                ) % (company.signature_logo_url, company.name, width, style)
             elif company.logo:
                 # Use public URL for company logo to work with Gmail proxy
                 logo_url = PublicSignatureImage.get_public_logo_url(
                     company.id, env=self.env
                 )
                 values["company_logo"] = Markup(
-                    f'<img src="{logo_url}" '
-                    f'alt="{company.name}" '
-                    f'width="{width}" '
-                    f'style="{style}" />'
-                )
+                    '<img src="%s" alt="%s" width="%s" style="%s" />'
+                ) % (logo_url, company.name, width, style)
             else:
                 values["company_logo"] = ""
         else:
@@ -360,7 +355,6 @@ class SignatureTemplate(models.Model):
 
         # Add social media URLs using Odoo's /website/social/<platform> routes
         # This provides built-in tracking and proper redirects
-        company = user.company_id
         base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
 
         social_platforms = {
@@ -397,16 +391,23 @@ class SignatureTemplate(models.Model):
 
         return values
 
-    def _render_signature(self, user):
-        """Render the signature template for a specific user."""
+    def _render_signature(self, user, company=None):
+        """Render the signature template for a specific user.
+
+        :param user: res.users record
+        :param company: res.company record for company context.
+            Defaults to user.env.company.
+        """
         self.ensure_one()
         if not self.body_html:
             return ""
 
-        values = self._get_render_values(user)
+        values = self._get_render_values(user, company=company)
 
-        # Use qweb engine with proper QWeb syntax
-        rendered = self._render_template(
+        # Render unrestricted: templates are admin-managed (ADR-0001), and the
+        # bare context variables are not in mail_allowed_qweb_expressions(), so
+        # restricted rendering would raise AccessError for non-admin users.
+        rendered = self.sudo()._render_template(
             self.body_html,
             "res.users",
             user.ids,

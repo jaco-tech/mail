@@ -1,6 +1,10 @@
 # Copyright 2025 OCA Contributors
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
+from email.utils import formataddr
+
+from markupsafe import Markup
+
 from odoo import _, api, fields, models
 from odoo.orm.identifiers import NewId
 from odoo.tools import is_html_empty
@@ -35,6 +39,12 @@ class ResUsers(models.Model):
         "signature.template",
         string="Signature Template (stored)",
         help="Internal field to store user selection",
+    )
+
+    signature_company_ids = fields.One2many(
+        "user.signature.company",
+        "user_id",
+        string="Per-Company Signature Settings",
     )
 
     @api.depends(
@@ -115,17 +125,109 @@ class ResUsers(models.Model):
                 and user.signature_template_id
                 and user.company_id.use_signature_templates
             ):
-                # Use template
-                user.signature = user.signature_template_id._render_signature(user)
+                # Stored signature is deterministic per user (ADR-0002):
+                # render with the user's OWN company, never env.company, so a
+                # batch recompute in another company's context cannot poison it.
+                user.signature = user.signature_template_id._render_signature(
+                    user, company=user.company_id
+                )
             elif (
                 not user.use_signature_template
                 and user.name
                 and is_html_empty(user.signature)
             ):
-                # Default signature only if no custom signature exists
-                user.signature = f"<p>--<br />{user.name}</p>"
+                # Default signature only if no custom signature exists.
+                # Escape the name: the field sanitizer preserves <a href>, so
+                # escaping here is the correct defense and stays consistent with
+                # the fallback in _get_company_signature.
+                user.signature = Markup("<p>--<br/>%s</p>") % user.name
             # If signature already has value and not using template,
             # keep existing value (this is the custom signature)
+
+    # ------------------------------------------------------------------
+    # Multi-company signature helpers
+    # ------------------------------------------------------------------
+
+    def _identity_company_ids(self):
+        """Companies this user may send as: Home Company + configured identities."""
+        self.ensure_one()
+        configured = self.signature_company_ids.mapped("company_id")
+        return self.company_id | configured
+
+    def _get_company_email(self, company=None):
+        """Return the per-company email for this user, or fall back to user.email.
+
+        :param company: res.company record (defaults to self.env.company)
+        """
+        self.ensure_one()
+        if not self.id or isinstance(self.id, NewId):
+            return ""
+        company = company or self.env.company
+        sig_company = self.env["user.signature.company"]._get_for_user_company(
+            self, company
+        )
+        if sig_company and sig_company.email:
+            return sig_company.email
+        return self.email
+
+    def _get_company_email_formatted(self, company=None):
+        """Return formatted 'Name <email>' for the given company context."""
+        self.ensure_one()
+        email = self._get_company_email(company)
+        return formataddr((self.name, email))
+
+    def _get_company_signature(self, company=None):
+        """Render and return the signature for a specific company context.
+
+        Looks up per-company template preference, falls back to the user's
+        default template, then to the stored signature field.
+
+        :param company: res.company record (defaults to self.env.company)
+        """
+        self.ensure_one()
+        if not self.id or isinstance(self.id, NewId):
+            return ""
+
+        company = company or self.env.company
+
+        # Determine template and use_template for this company
+        sig_company = self.env["user.signature.company"]._get_for_user_company(
+            self, company
+        )
+
+        if sig_company:
+            use_template = sig_company.use_signature_template
+            template = sig_company.signature_template_id
+        else:
+            # Fallback to user-level fields
+            use_template = self.use_signature_template
+            template = self.signature_template_id
+
+        # Company-level overrides
+        if not company.use_signature_templates:
+            use_template = False
+        elif company.force_signature_template and company.default_signature_template_id:
+            use_template = True
+            template = company.default_signature_template_id
+
+        # If no per-company template set, try company default
+        if use_template and not template and company.default_signature_template_id:
+            template = company.default_signature_template_id
+
+        if use_template and template:
+            return Markup(template._render_signature(self, company=company))
+
+        # Fallback to stored signature (already sanitized) or an escaped default.
+        # Wrap in Markup: a cold ORM-cache read of ``signature`` yields a raw
+        # ``str``, and mail_thread inserts this via ``%`` formatting which would
+        # otherwise double-escape a real custom signature in outbound email.
+        if not is_html_empty(self.signature):
+            return Markup(self.signature)
+        return Markup("<p>--<br/>%s</p>") % self.name
+
+    # ------------------------------------------------------------------
+    # CRUD
+    # ------------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -178,19 +280,6 @@ class ResUsers(models.Model):
             # Force recomputation of signature
             vals["signature"] = False
         return super().write(vals)
-
-    @api.model
-    def _get_signature_access_fields(self):
-        """Fields that users can modify on their own signature settings."""
-        fields = []
-        if hasattr(super(), "_get_signature_access_fields"):
-            fields = super()._get_signature_access_fields()
-        return fields + [
-            "use_signature_template",
-            "_use_signature_template",
-            "signature_template_id",
-            "_signature_template_id",
-        ]
 
     def action_preview_signature(self):
         """Preview the current signature."""
