@@ -281,19 +281,6 @@ class ResUsers(models.Model):
             vals["signature"] = False
         return super().write(vals)
 
-    @api.model
-    def _get_signature_access_fields(self):
-        """Fields that users can modify on their own signature settings."""
-        fields = []
-        if hasattr(super(), "_get_signature_access_fields"):
-            fields = super()._get_signature_access_fields()
-        return fields + [
-            "use_signature_template",
-            "_use_signature_template",
-            "signature_template_id",
-            "_signature_template_id",
-        ]
-
     def action_preview_signature(self):
         """Preview the current signature."""
         self.ensure_one()

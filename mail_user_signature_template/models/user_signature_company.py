@@ -35,6 +35,12 @@ class UserSignatureCompany(models.Model):
         domain="[('company_id', '=', company_id)]",
         help="Signature template to use for this company",
     )
+    display_name = fields.Char(compute="_compute_display_name")
+
+    @api.depends("user_id.name", "company_id.name")
+    def _compute_display_name(self):
+        for rec in self:
+            rec.display_name = f"{rec.user_id.name} — {rec.company_id.name}"
 
     _user_company_unique = models.Constraint(
         "UNIQUE(user_id, company_id)",

@@ -461,6 +461,52 @@ class TestMultiCompanySignature(TransactionCase):
                 }
             )
 
+    def test_regular_user_cannot_write_identity(self):
+        """A plain user cannot create/write their own identity (admin-managed)."""
+        plain = self.env["res.users"].create(
+            {
+                "name": "NoWrite",
+                "login": "nowrite_user",
+                "email": "nw@a.be",
+                "company_id": self.company_a.id,
+                "company_ids": [(6, 0, [self.company_a.id])],
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
+        # Odoo's custom assertRaises accepts a single exception class, not a
+        # tuple. With the admin-managed ACL, create is denied at the ACL level.
+        with self.assertRaises(AccessError):
+            self.env["user.signature.company"].with_user(plain).create(
+                {
+                    "user_id": plain.id,
+                    "company_id": self.company_a.id,
+                    "email": "self@a.be",
+                }
+            )
+
+    def test_regular_user_can_read_own_identity(self):
+        """A plain user can still READ their own identity row."""
+        plain = self.env["res.users"].create(
+            {
+                "name": "CanRead",
+                "login": "canread_user",
+                "email": "cr@a.be",
+                "company_id": self.company_b.id,
+                "company_ids": [(6, 0, [self.company_b.id])],
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
+        row = self.env["user.signature.company"].create(
+            {
+                "user_id": plain.id,
+                "company_id": self.company_b.id,
+            }
+        )
+        visible = self.env["user.signature.company"].with_user(plain).search(
+            [("id", "=", row.id)]
+        )
+        self.assertTrue(visible)
+
     def test_template_company_mismatch_blocked(self):
         """Can't assign a template from a different company."""
         with self.assertRaises(ValidationError):
