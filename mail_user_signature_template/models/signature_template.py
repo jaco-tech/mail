@@ -418,8 +418,10 @@ class SignatureTemplate(models.Model):
 
         values = self._get_render_values(user, company=company)
 
-        # Use qweb engine with proper QWeb syntax
-        rendered = self._render_template(
+        # Render unrestricted: templates are admin-managed (ADR-0001), and the
+        # bare context variables are not in mail_allowed_qweb_expressions(), so
+        # restricted rendering would raise AccessError for non-admin users.
+        rendered = self.sudo()._render_template(
             self.body_html,
             "res.users",
             user.ids,

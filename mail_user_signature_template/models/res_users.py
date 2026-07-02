@@ -123,9 +123,11 @@ class ResUsers(models.Model):
                 and user.signature_template_id
                 and user.company_id.use_signature_templates
             ):
-                # Use template — render with current env company
+                # Stored signature is deterministic per user (ADR-0002):
+                # render with the user's OWN company, never env.company, so a
+                # batch recompute in another company's context cannot poison it.
                 user.signature = user.signature_template_id._render_signature(
-                    user, company=user.env.company
+                    user, company=user.company_id
                 )
             elif (
                 not user.use_signature_template
@@ -206,24 +208,6 @@ class ResUsers(models.Model):
         if not is_html_empty(self.signature):
             return self.signature
         return f"<p>--<br />{self.name}</p>"
-
-    @api.model
-    def _init_store_data(self, store):
-        """Prime the active-company signature before super() serializes it.
-
-        The parent (mail module) adds `signature` to the JS store by reading
-        the stored field on the current user.  `signature` is computed with
-        `user.env.company`, so its stored value reflects whichever company
-        was active the last time it was computed.  When the user switches
-        company, `_init_store_data` is called again in the new context and
-        we re-render here so the parent picks up the correct value.
-        """
-        if not self.env.user._is_public():
-            user = self.env.user
-            company_signature = user._get_company_signature()
-            if company_signature and user.signature != company_signature:
-                user.signature = company_signature
-        super()._init_store_data(store)
 
     # ------------------------------------------------------------------
     # CRUD

@@ -224,6 +224,11 @@ class TestMultiCompanySignature(TransactionCase):
         partner = self.env["res.partner"].create(
             {"name": "Recipient", "email": "recipient@example.com"}
         )
+        # Plain internal users cannot write res.partner in Odoo 19, and
+        # mail.message create requires write/create access on the related
+        # document (or follower status). Subscribe the acting user so the
+        # post is allowed and the sudo-rendered signature path is exercised.
+        partner.message_subscribe(partner_ids=self.user.partner_id.ids)
         record = partner.with_user(self.user).with_company(self.company_b)
         message = record.message_post(
             body="Hello",
@@ -300,4 +305,35 @@ class TestMultiCompanySignature(TransactionCase):
                     "signature_template_id": self.template_b.id,
                 }
             )
+
+    # ------------------------------------------------------------------
+    # ADR-0001 / ADR-0002: unrestricted render, no stored poisoning
+    # ------------------------------------------------------------------
+
+    def test_non_admin_can_render_signature(self):
+        """A plain internal user (not admin, not template editor) renders
+        a bare-variable template without AccessError (ADR-0001)."""
+        plain = self.env["res.users"].create({
+            "name": "Plain User",
+            "login": "plain_render_user",
+            "email": "plain@company-a-test.be",
+            "company_id": self.company_a.id,
+            "company_ids": [(6, 0, [self.company_a.id])],
+            "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+        })
+        sig = self.template_a.with_user(plain)._render_signature(plain)
+        self.assertIn("Plain User", sig)
+
+    def test_compute_signature_uses_company_id_not_env_company(self):
+        """Stored signature is rendered from the user's own company_id,
+        independent of env.company (ADR-0002)."""
+        user_b_env = self.user.with_company(self.company_b)
+        user_b_env.invalidate_recordset(["signature"])
+        user_b_env._compute_signature()
+        # user.company_id is company_a → stored signature reflects company_a
+        self.assertIn(self.company_a.name, self.user.signature or "")
+
+    def test_init_store_data_not_overridden(self):
+        """The stored-field priming trick is gone (ADR-0002)."""
+        self.assertNotIn("_init_store_data", vars(type(self.user)))
 
