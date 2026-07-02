@@ -277,7 +277,11 @@ class TestMultiCompanySignature(TransactionCase):
                 "company_ids": [(6, 0, [self.company_a.id])],
             }
         )
-        with self.assertRaises((ValidationError, AccessError)):
+        # NOTE: Odoo's custom assertRaises accepts a single exception class,
+        # not a tuple. The own-records rule denies creating a row whose
+        # user_id is another user -> AccessError (both before and after the
+        # admin-managed ACL change).
+        with self.assertRaises(AccessError):
             self.env["user.signature.company"].with_user(self.user).create(
                 {
                     "user_id": other.id,

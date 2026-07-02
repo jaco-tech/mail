@@ -111,7 +111,7 @@
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_tree" />
         <field name="arch" type="xml">
-            <field name="company_id" position="after">
+            <field name="login" position="after">
                 <field name="signature_template_id" optional="hide" />
                 <field
                     name="use_signature_template"
