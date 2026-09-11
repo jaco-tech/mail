@@ -61,6 +61,9 @@ class TestSignatureTemplate(TransactionCase):
 
     def test_02_template_rendering(self):
         """Test template rendering with user data."""
+        # Give the fixture an email: base.user_admin has none on a restored
+        # database, and the assertion below needs a string.
+        self.user_admin.email = "admin@example.com"
         rendered = self.template._render_signature(self.user_admin)
         self.assertIn(self.user_admin.name, rendered)
         self.assertIn(self.user_admin.email, rendered)
@@ -219,7 +222,10 @@ class TestSignatureTemplate(TransactionCase):
         # Set test data
         self.user_admin.function = "Test Function"
         self.user_admin.phone = "+1234567890"
-        self.user_admin.mobile = "+0987654321"
+        self.user_admin.mobile_phone = "+0987654321"
+        # base.user_admin carries no email on a restored database, and the
+        # assertion below needs a string.
+        self.user_admin.email = "admin@example.com"
         self.company.website = "www.test.com"
         self.company.email = "info@test.com"
         self.company.phone = "+1111111111"
