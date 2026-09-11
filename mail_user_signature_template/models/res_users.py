@@ -9,6 +9,33 @@ from odoo.tools import is_html_empty
 class ResUsers(models.Model):
     _inherit = "res.users"
 
+    # Both fields below are shown on My Profile, and both are user-settable
+    # there. `res.users.read()` elevates a user's read of their OWN record only
+    # when EVERY requested field is self-accessible
+    # (odoo/addons/base/models/res_users.py:564-569) — one unregistered field
+    # silently drops the whole read to non-sudo, and any `hr.employee`-related
+    # field in the same payload then raises AccessError.
+    #
+    # That is what broke My Profile for every non-HR user at Steen: the error
+    # named `hr.employee.private_street`, but these two fields were part of the
+    # cause. `mail_partner_forwarding` in this repo already does this correctly.
+
+    @property
+    def SELF_READABLE_FIELDS(self):
+        return super().SELF_READABLE_FIELDS + [
+            "use_signature_template",
+            "signature_template_id",
+        ]
+
+    @property
+    def SELF_WRITEABLE_FIELDS(self):
+        # Both are user preferences edited from My Profile, so they must be
+        # writable there too, or saving the dialog fails the same way.
+        return super().SELF_WRITEABLE_FIELDS + [
+            "use_signature_template",
+            "signature_template_id",
+        ]
+
     use_signature_template = fields.Boolean(
         compute="_compute_use_signature_template",
         inverse="_inverse_use_signature_template",
