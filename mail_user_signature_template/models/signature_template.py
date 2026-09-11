@@ -218,7 +218,7 @@ class SignatureTemplate(models.Model):
             "name": user.name or "",
             "email": user.email or "",
             "phone": user.phone or "",
-            "mobile_phone": getattr(user, 'mobile_phone', '') or "",
+            "mobile_phone": getattr(user, "mobile_phone", "") or "",
             "function": user.function or "",
             "company_name": user.company_id.name or "",
             "website": user.company_id.website or "",

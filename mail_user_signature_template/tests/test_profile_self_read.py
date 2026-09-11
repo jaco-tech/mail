@@ -36,3 +36,24 @@ class TestProfileSelfRead(TransactionCase):
         )
         own = self.env["res.users"].with_user(user).browse(user.id)
         own.web_read({"use_signature_template": {}, "signature_template_id": {}})
+
+    def test_a_foreign_company_template_is_refused_on_write(self):
+        """The view domain is not an authorization boundary.
+
+        Making these fields self-writeable elevates the write for one's own
+        record, so an RPC write bypassing the UI domain must be refused on the
+        server.
+        """
+        from odoo.exceptions import ValidationError
+
+        other_company = self.env["res.company"].create({"name": "Elders NV"})
+        foreign = self.env["signature.template"].create(
+            {"name": "Foreign", "company_id": other_company.id}
+        )
+        user = new_test_user(
+            self.env, login="sig_foreign_probe", groups="base.group_user"
+        )
+        with self.assertRaises(ValidationError):
+            self.env["res.users"].with_user(user).browse(user.id).write(
+                {"signature_template_id": foreign.id}
+            )

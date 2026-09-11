@@ -2,6 +2,7 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
 from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.orm.identifiers import NewId
 from odoo.tools import is_html_empty
 
@@ -122,10 +123,37 @@ class ResUsers(models.Model):
                 user.signature_template_id = False
 
     def _inverse_signature_template_id(self):
-        """Store user selection for signature_template_id."""
+        """Store user selection for signature_template_id.
+
+        The company restriction on the field is a **view domain**
+        (``domain="[('company_id', '=', company_id)]"``), which is a UI
+        convenience and not an authorization boundary — an RPC write is not
+        bound by it. That mattered little while the field was not
+        self-writeable, because ``res.users.write()`` refused the write
+        outright. Now that My Profile must be able to save it
+        (SELF_WRITEABLE_FIELDS above), the write is elevated for one's own
+        record, so the company check has to exist on the server.
+        """
         for user in self:
-            if not user.company_id.force_signature_template:
-                user._signature_template_id = user.signature_template_id
+            if user.company_id.force_signature_template:
+                continue
+            template = user.signature_template_id
+            if (
+                template
+                and template.company_id
+                and template.company_id != user.company_id
+            ):
+                raise ValidationError(
+                    _(
+                        "Signature template %(template)s belongs to "
+                        "%(owner)s and cannot be used by a user of "
+                        "%(company)s.",
+                        template=template.display_name,
+                        owner=template.company_id.display_name,
+                        company=user.company_id.display_name,
+                    )
+                )
+            user._signature_template_id = template
 
     @api.depends("signature_template_id", "use_signature_template", "name")
     def _compute_signature(self):
