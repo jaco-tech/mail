@@ -405,8 +405,13 @@ class SignatureTemplate(models.Model):
 
         values = self._get_render_values(user)
 
-        # Use qweb engine with proper QWeb syntax
-        rendered = self._render_template(
+        # Render as superuser: in a non-editor user's env mail.render.mixin
+        # restricts QWeb to mail_allowed_qweb_expressions(), which rejects our
+        # own placeholders (name, email, company_logo, ...) with an
+        # AccessError. This is safe because templates are only authorable by
+        # signature managers / system admins (ir.model.access.csv grants
+        # base.group_user read-only), so users can render but never inject.
+        rendered = self.sudo()._render_template(
             self.body_html,
             "res.users",
             user.ids,
