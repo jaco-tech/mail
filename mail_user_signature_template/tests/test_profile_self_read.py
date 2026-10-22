@@ -140,3 +140,28 @@ class TestProfileSelfRead(TransactionCase):
 
         with self.assertRaises(_VE):
             own.write({"use_signature_template": False})
+
+    def test_save_with_only_another_company_selected(self):
+        """My Profile saves while the user's own company is not selected.
+
+        With only another allowed company in the switcher, the user cannot read
+        their own ``company_id`` record; ``write()`` must still read its
+        signature settings.
+        """
+        home = self.env.company
+        other = self.env["res.company"].create({"name": "Sister BV"})
+        user = new_test_user(
+            self.env,
+            login="sig_switcher_probe",
+            groups="base.group_user",
+            company_id=home.id,
+            company_ids=[(6, 0, [home.id, other.id])],
+        )
+        own = (
+            self.env["res.users"]
+            .with_user(user)
+            .with_context(allowed_company_ids=[other.id])
+            .browse(user.id)
+        )
+        own.write({"tz": "Europe/Brussels"})
+        self.assertEqual(user.tz, "Europe/Brussels")

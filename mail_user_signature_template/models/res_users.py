@@ -251,7 +251,9 @@ class ResUsers(models.Model):
           accepted, while False can only be a real opt-out.
         """
         for user in self:
-            company = user.company_id
+            # sudo: with only another allowed company selected in the switcher,
+            # the user cannot read their own company record.
+            company = user.company_id.sudo()
             if not (
                 company.force_signature_template and company.use_signature_templates
             ):
